@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
 ### --- CONFIG --- ###
-video_path = "C:\\Users\\qazia\\Desktop\\S.K.I.B. Code\\150 deg\\trial two\\IMG_7805.mov"
-tape_img_path = "C:\\Users\\qazia\\Desktop\\S.K.I.B. Code\\150 deg\\TapeStill.png"
+video_path = "C:\\Users\\qazia\\Desktop\\S.K.I.B. Code\\PID Testing Trials\\P=5\\i =0\\500\\trial one\\trialone.mp4"
+tape_img_path = "C:\\Users\\qazia\\Desktop\\S.K.I.B. Code\\PID Testing Trials\\TapeStillEdited.png"
 output_image_red = 'path_red.png'
 output_image_black = 'path_black.png'
 deviation_csv = 'deviation_data.csv'
@@ -54,6 +54,7 @@ while cap.isOpened():
 
 cap.release()
 
+
 ### --- PART 2: Extract and align tape path (skeleton) --- ###
 def skeletonize(img):
     skel = np.zeros(img.shape, np.uint8)
@@ -87,7 +88,7 @@ for cnt in filtered_contours:
     tape_points += list(zip(xs, ys))
 
 tape_points = sorted(tape_points, key=lambda p: p[1])  # top-to-bottom
-tape_points.reverse()
+# tape_points.reverse()
 tape_offset = 0
 tape_points = tape_points[tape_offset::]
 
