@@ -14,8 +14,8 @@ deviation_csv = 'deviation_data.csv'
 deviation_output_image = 'deviation_output.png'
 
 ### --- PART 1: Extract bot path from video --- ###
-min_contour_area = 300
-min_circularity = 0.75
+min_contour_area = 50
+min_circularity = 0.71
 positions = []
 
 cap = cv2.VideoCapture(video_path)
@@ -30,8 +30,9 @@ while cap.isOpened():
         frame_height, frame_width = frame.shape[:2]
 
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    lower_orange = np.array([0, 120, 120])
-    upper_orange = np.array([20, 255, 255])
+    lower_orange = np.array([ 5, 150, 140])
+    upper_orange = np.array([ 20, 255, 255])
+
     mask = cv2.inRange(hsv, lower_orange, upper_orange)
 
     kernel = np.ones((5, 5), np.uint8)
@@ -50,10 +51,11 @@ while cap.isOpened():
         if area > min_contour_area and circularity > min_circularity:
             (x, y), _ = cv2.minEnclosingCircle(cnt)
             positions.append((int(x), int(y)))
+
+            cv2.circle(frame, (int(x), int(y)), min_contour_area, (0, 255, 0), 2)  # Green circle with radius 10
+
             break
 
-
-    cv2.imshow("Mask", mask)
     cv2.imshow("Frame", frame)
     cv2.waitKey(1)
 
@@ -229,15 +231,15 @@ def plot_deviation_area(csv_path):
 
     plt.figure(figsize=(10, 6))
 
-    image_width = frame_width
-    image_height = frame_height
+    # image_width = frame_width
+    # image_height = frame_height
 
-    red_x_flipped = [image_width - x for x in red_x_sorted]
-    red_y_flipped = [image_height - y for y in red_y_sorted]
+    # red_x_flipped = [image_width - x for x in red_x_sorted]
+    # red_y_flipped = [image_height - y for y in red_y_sorted]
 
-    plt.plot(red_y_flipped, red_x_flipped, label='Red Path (Bot)', color='red')
+    # plt.plot(red_y_flipped, red_x_flipped, label='Red Path (Bot)', color='red')
 
-    # plt.plot(red_y_sorted, red_x_sorted, label='Red Path (Bot)', color='red')
+    plt.plot(red_y_sorted, red_x_sorted, label='Red Path (Bot)', color='red')
     plt.plot(black_y_sorted, black_x_sorted, label='Black Path (Tape)', color='black')
     plt.fill_between(red_y_sorted, red_x_sorted, black_x_sorted, color='purple', alpha=0.3, label='Deviation Area')
     plt.xlabel('Y-coordinate (along path)')
