@@ -14,8 +14,8 @@ deviation_csv = 'deviation_data.csv'
 deviation_output_image = 'deviation_output.png'
 
 ### --- PART 1: Extract bot path from video --- ###
-min_contour_area = 200
-min_circularity = 0.4
+min_contour_area = 300
+min_circularity = 0.75
 positions = []
 
 cap = cv2.VideoCapture(video_path)
@@ -52,8 +52,13 @@ while cap.isOpened():
             positions.append((int(x), int(y)))
             break
 
-cap.release()
 
+    cv2.imshow("Mask", mask)
+    cv2.imshow("Frame", frame)
+    cv2.waitKey(1)
+
+
+cap.release()
 
 ### --- PART 2: Extract and align tape path (skeleton) --- ###
 def skeletonize(img):
@@ -68,7 +73,6 @@ def skeletonize(img):
         if cv2.countNonZero(img) == 0:
             break
     return skel
-
 
 tape_img = cv2.imread(tape_img_path)
 resized_tape = cv2.resize(tape_img, (frame_width, frame_height))
@@ -224,7 +228,16 @@ def plot_deviation_area(csv_path):
     red_y_sorted, red_x_sorted, black_x_sorted, black_y_sorted = zip(*combined)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(red_y_sorted, red_x_sorted, label='Red Path (Bot)', color='red')
+
+    image_width = frame_width
+    image_height = frame_height
+
+    red_x_flipped = [image_width - x for x in red_x_sorted]
+    red_y_flipped = [image_height - y for y in red_y_sorted]
+
+    plt.plot(red_y_flipped, red_x_flipped, label='Red Path (Bot)', color='red')
+
+    # plt.plot(red_y_sorted, red_x_sorted, label='Red Path (Bot)', color='red')
     plt.plot(black_y_sorted, black_x_sorted, label='Black Path (Tape)', color='black')
     plt.fill_between(red_y_sorted, red_x_sorted, black_x_sorted, color='purple', alpha=0.3, label='Deviation Area')
     plt.xlabel('Y-coordinate (along path)')
