@@ -2,24 +2,36 @@ import cv2
 import numpy as np
 import csv
 import os
+import cv2.aruco as aruco
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
 ### --- CONFIG --- ###
-video_path = "C:\\Users\\qazia\\Desktop\\S.K.I.B. Code\\PID Testing Trials OLD\\P=5\\i =0\\500\\trial two\\trialtwo.mp4"
-tape_img_path = "C:\\Users\\qazia\\Desktop\\S.K.I.B. Code\\PID Testing Trials OLD\\TapeStillEdited.png"
-output_image_red = 'path_red.png'
-output_image_black = 'path_black.png'
-deviation_csv = 'deviation_data.csv'
-deviation_output_image = 'deviation_output.png'
+folder_path = "./PID Testing Trials NEW/P=20/i=1/2015/trial two/"
+video_path = folder_path + "IMG_7898.mov"
+tape_img_path = "./PID Testing Trials NEW/TapeStillEdited.png"
+output_image_red = folder_path + 'path_red.png'
+output_image_black = folder_path + 'path_black.png'
+deviation_csv = folder_path + 'deviation_data.csv'
+deviation_output_image = folder_path + 'deviation_output.png'
+deviation_output_graph = folder_path + "deviation_plot.png"
+deviation_result = folder_path + "deviation_result.txt"
 
 ### --- PART 1: Extract bot path from video --- ###
-min_contour_area = 170
-min_circularity = 0.5
+dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_100)
+parameters = aruco.DetectorParameters()
+detector = aruco.ArucoDetector(dictionary, parameters)
+
 positions = []
 
 cap = cv2.VideoCapture(video_path)
 frame_width, frame_height = None, None
+
+# defining dictionaries type shit
+aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_100)
+parameters = aruco.DetectorParameters()
+aruco_image_length_pixels = None
+aruco_image_length_real = 2.4
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -29,37 +41,40 @@ while cap.isOpened():
     if frame_width is None or frame_height is None:
         frame_height, frame_width = frame.shape[:2]
 
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    lower_orange = np.array([ 5, 135, 140])
-    upper_orange = np.array([ 20, 255, 255])
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    mask = cv2.inRange(hsv, lower_orange, upper_orange)
+    # Detect markers
+    corners, ids, _ = detector.detectMarkers(gray)
 
-    kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    # mask f same size
+    mask = np.zeros_like(frame)
 
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if ids is not None:
+        for i, marker_id in enumerate(ids.flatten()):
+            if marker_id == 50:
+                c = corners[i][0]  # four fours my word fham
+                center_x = int(np.mean(c[:, 0]))
+                center_y = int(np.mean(c[:, 1]))
 
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        perimeter = cv2.arcLength(cnt, True)
-        if perimeter == 0:
-            continue
-        circularity = 4 * np.pi * area / (perimeter ** 2)
+                if aruco_image_length_pixels == None:
+                    aruco_image_length_pixels = c[-1][0] - c[0][0]
+                    print(aruco_image_length_pixels)
 
-        if area > min_contour_area and circularity > min_circularity:
-            (x, y), _ = cv2.minEnclosingCircle(cnt)
-            positions.append((int(x), int(y)))
+                positions.append((center_x, center_y))
 
-            cv2.circle(frame, (int(x), int(y)), min_contour_area, (0, 255, 0), 2)  # Green circle with radius 10
+                # draw dot
+                cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
 
-            break
+                pts = np.array([c], dtype=np.int32)
+                cv2.fillPoly(mask, pts, (0, 255, 0)) 
 
-    cv2.imshow("Frame", frame)
-    cv2.imshow("Mask", mask)
-    cv2.waitKey(100)
+                break
 
+    # blend frame and mask
+    overlayed = cv2.addWeighted(frame, 1.0, mask, 0.5, 0)
+
+    cv2.imshow("Masked Marker Tracking", overlayed)
+    cv2.waitKey(5)
 
 cap.release()
 
@@ -85,6 +100,9 @@ _, thresh = cv2.threshold(blurred, 50, 255, cv2.THRESH_BINARY_INV)
 cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
 contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 filtered_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 100]
+#copy = np.copy(resized_tape)
+#cv2.drawContours(copy, filtered_contours, -1, (0, 255, 0), 2)
+#cv2.imshow("skib", copy)
 
 tape_points = []
 for cnt in filtered_contours:
@@ -95,8 +113,7 @@ for cnt in filtered_contours:
     tape_points += list(zip(xs, ys))
 
 tape_points = sorted(tape_points, key=lambda p: p[1])  # top-to-bottom
-# tape_points.reverse()
-tape_offset = 0
+tape_offset = 40
 tape_points = tape_points[tape_offset::]
 
 if tape_points and positions:
@@ -120,7 +137,7 @@ cv2.imwrite(output_image_black, canvas2)
 
 ### --- PART 4: Deviation Analysis --- ###
 def interpolate_path(points, num_points=2000):
-    # Interpolate along the path to fill gaps using linear interpolation
+    # interpolation
     from scipy.interpolate import interp1d
 
     points = sorted(points, key=lambda p: p[1])  # sort by Y
@@ -156,6 +173,9 @@ def find_line_deviation(red_path, black_path, csv_output_path, output_image_path
 
     contours_black, _ = cv2.findContours(black_only_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     contours_red, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    x = image_red.copy()
+    cv2.drawContours(x, contours_red, -1, (0, 0, 255), 2)
+    cv2.imshow("hi", x)
 
     
     if not contours_black or not contours_red:
@@ -193,9 +213,9 @@ def find_line_deviation(red_path, black_path, csv_output_path, output_image_path
         for j in range(len(lxr)):
             if lyr[j] == lyr[i]:
                 all_x.append(lxr[j])
-        point_dict_red[lyr[i]] = max(all_x)
+        point_dict_red[lyr[i]] = all_x[0]
 
-    with open("deviation_data.csv", "w") as f:
+    with open(csv_output_path, "w") as f:
         f.write("Red_X,Red_Y,Black_X,Black_Y,Deviation_X\n")
 
         black_y = list(point_dict_black.keys())
@@ -212,7 +232,7 @@ def find_line_deviation(red_path, black_path, csv_output_path, output_image_path
     ax.scatter(list(point_dict_red.keys()), list(point_dict_red.values()), s = 0.1)
     ax.set(xlim=(0, 1500), xticks=np.arange(0, 500, 100),
        ylim=(0, 1500), yticks=np.arange(0, 500, 100))
-    plt.savefig("sigma.png")
+    plt.savefig(output_image_path)
 
 
 def plot_deviation_area(csv_path):
@@ -249,9 +269,25 @@ def plot_deviation_area(csv_path):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("deviation_plot.png")
+    plt.savefig(deviation_output_graph)
     plt.show()
+
+def calculate_values(csv_path, result_path):
+
+    deviation_sum = 0
+    with open(csv_path, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            deviation_sum += float(row["Deviation_X"])
+
+    x_deviation_sum = (deviation_sum/aruco_image_length_pixels)*aruco_image_length_real
+    y_deviation = (1/aruco_image_length_pixels)*aruco_image_length_real
+    scaled_deviation = x_deviation_sum*y_deviation
+    
+    with open(result_path, "w") as f:
+        f.write(str(scaled_deviation))
 
 ### --- Run Analysis --- ###
 find_line_deviation(output_image_red, output_image_black, deviation_csv, deviation_output_image)
 plot_deviation_area(deviation_csv)
+calculate_values(deviation_csv, deviation_result)
